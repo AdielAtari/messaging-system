@@ -29,21 +29,23 @@ jwt = JWTManager(app)
 # create_access_token() function is used to actually generate the JWT.
 @app.route("/login", methods=["POST"])
 def login():
-    # username = request.json.get("username", None)
-    # password = request.json.get("password", None)
+    # Get data from user to login
     login_data = request.get_json(silent=True)
     if not login_data:
         return werkzeug_exceptions.BadRequest(f'No username and password provided as json to login, '
                                               f'login_data: {login_data}')
+    # Get username and password
     username = login_data.get("username", None)
     password = login_data.get("password", None)
+    # In case one of password or username does not exit in request not a valid request
     if not username or not password:
         return werkzeug_exceptions.BadRequest(f'One of username or password was not provided in json to login, '
                                               f'login_data: {login_data}')
-    is_username_exit = db_instance.get_item()
-    if username != "test" or password != "test":
-        # return werkzeug_exceptions.Unauthorized(f'')
-        return jsonify({"msg": "Bad username or password"}), 401
+
+    # In case username already taken, not a valid request
+    is_username_exit = db_instance.get_item(collection=db_instance.users_collection, query={"username": username})
+    if is_username_exit:
+        return werkzeug_exceptions.Unauthorized(f'Username already exist, choose another one')
 
     access_token = create_access_token(identity=username)
     return jsonify(access_token=access_token)
