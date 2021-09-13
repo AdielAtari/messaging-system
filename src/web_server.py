@@ -47,7 +47,12 @@ def login():
     if is_username_exit:
         return werkzeug_exceptions.Unauthorized(f'Username already exist, choose another one')
 
+    # create token for new user
     access_token = create_access_token(identity=username)
+
+    # Add new user to DB
+    if not db_instance.add_item(collection=db_instance.users_collection, new_document=login_data):
+        return werkzeug_exceptions.InternalServerError(f'Failed to add user to DB')
     return jsonify(access_token=access_token)
 
 
