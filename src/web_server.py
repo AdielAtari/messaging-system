@@ -52,7 +52,7 @@ def login():
 
     # Add new user to DB
     if not db_instance.add_item(collection=db_instance.users_collection, new_document=login_data):
-        return werkzeug_exceptions.InternalServerError(f'Failed to add user to DB')
+        return werkzeug_exceptions.InternalServerError(f'Failed to add user: {username} to DB')
     return jsonify(access_token=access_token)
 
 
