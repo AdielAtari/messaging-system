@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify, send_file
-from flask_jwt import JWT
+# from flask_jwt import JWT
+from flask_jwt_extended import JWTManager, get_jwt_identity, create_access_token, jwt_required
+
+
 import uuid
 import os
 from http import HTTPStatus
-import werkzeug.exceptions
+import werkzeug.exceptions as werkzeug_exceptions
 
 from db_handler import DBHandler
 from auth import Auth
@@ -11,9 +14,49 @@ db_instance = DBHandler(database='messaging-system', users_collection='users', m
 auth_instance = Auth(db_instance)
 
 app = Flask(__name__)
-app.secret_key = 'my secret key'
+app.url_map.strict_slashes = False
+# app.secret_key = 'my secret key'
 
-jwt = JWT(app=app, authentication_handler=Auth.authentication_handler, identity_handler=Auth.identity_handler)
+# jwt = JWT(app=app, authentication_handler=Auth.authentication_handler, identity_handler=Auth.identity_handler)
+
+
+# Setup the Flask-JWT-Extended extension
+app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
+jwt = JWTManager(app)
+
+
+# Create a route to authenticate your users and return JWTs. The
+# create_access_token() function is used to actually generate the JWT.
+@app.route("/login", methods=["POST"])
+def login():
+    # username = request.json.get("username", None)
+    # password = request.json.get("password", None)
+    login_data = request.get_json(silent=True)
+    if not login_data:
+        return werkzeug_exceptions.BadRequest(f'No username and password provided as json to login, '
+                                              f'login_data: {login_data}')
+    username = login_data.get("username", None)
+    password = login_data.get("password", None)
+    if not username or not password:
+        return werkzeug_exceptions.BadRequest(f'One of username or password was not provided in json to login, '
+                                              f'login_data: {login_data}')
+    is_username_exit = db_instance.get_item()
+    if username != "test" or password != "test":
+        # return werkzeug_exceptions.Unauthorized(f'')
+        return jsonify({"msg": "Bad username or password"}), 401
+
+    access_token = create_access_token(identity=username)
+    return jsonify(access_token=access_token)
+
+
+# Protect a route with jwt_required, which will kick out requests
+# without a valid JWT present.
+@app.route("/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    # Access the identity of the current user with get_jwt_identity
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200
 
 
 @app.route('/heartbeat')
@@ -27,11 +70,13 @@ def write_message():
 
 
 @app.route('/messages', methods=['GET'])
+@jwt_required()
 def get_all_messages():
     pass
 
 
 @app.route('/unread_messages', methods=['GET'])
+@jwt_required()
 def get_all_unread_messages():
     pass
 
