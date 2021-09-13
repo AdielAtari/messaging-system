@@ -43,7 +43,7 @@ class DBHandler:
         :param query: In order to filter results
         :return: List of all matched document
         """
-        data = list(collection.find(query, {"_id": 0}).sort('_id', DESCENDING))
+        data = list(collection.find(query, {"_id": 0, "unread": 0}).sort('_id', DESCENDING))
         return data
 
     @staticmethod

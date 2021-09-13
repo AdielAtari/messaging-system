@@ -50,22 +50,12 @@ def login():
         return werkzeug_exceptions.Unauthorized(f'Username already exist, choose another one')
 
     # create token for new user
-    access_token = create_access_token(identity=username)
+    access_token = create_access_token(identity=username, expires_delta=False)
 
     # Add new user to DB
     if not db_instance.add_item(collection=db_instance.users_collection, new_document=login_data):
         return werkzeug_exceptions.InternalServerError(f'Failed to add user: {username} to DB')
     return jsonify(access_token=access_token), HTTPStatus.OK
-
-
-# Protect a route with jwt_required, which will kick out requests
-# without a valid JWT present.
-@app.route("/protected", methods=["GET"])
-@jwt_required()
-def protected():
-    # Access the identity of the current user with get_jwt_identity
-    current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), HTTPStatus.OK
 
 
 @app.route('/message', methods=['POST'])
@@ -88,12 +78,12 @@ def write_message():
     # Add field 'message_id' and 'creation_date' to the new message
     message_id = str(uuid.uuid4())
     creation_date = datetime.utcnow()
-    new_message.update({"message_id": message_id, "creation_date": creation_date})
+    new_message.update({"message_id": message_id, "creation_date": creation_date, "unread": True})
 
     # Add new message to DB
     if not db_instance.add_item(collection=db_instance.messages_collection, new_document=new_message):
         return werkzeug_exceptions.InternalServerError(f'Failed to add new message to DB: {new_message}')
-
+    del new_message['_id']
     return jsonify(new_message=new_message), HTTPStatus.CREATED
 
 
@@ -129,11 +119,14 @@ def get_one_message(message_id):
 
     # Filter message for the current user is the 'Receiver' and message_id
     query = {"Receiver": current_user, "message_id": message_id}
-    current_user_unread_messages = db_instance.get_item(collection=db_instance.messages_collection, query=query)
+    current_user_unread_messages = db_instance.get_item(collection=db_instance.messages_collection, query=query,
+                                                        field_obj={"unread": 0})
 
+    if not current_user_unread_messages:
+        return werkzeug_exceptions.NotFound(f'Not found the requested message_id: {message_id}')
     # Update the message as read message
-    update_boolean_field = [{"$set": {"unread": {"$eq": [False, "$unread"]}}}]
-    db_instance.update_item(collection=db_instance.messages_collection, query=query, update_data=update_boolean_field)
+    update_data = {"$set": {"unread": False}}
+    db_instance.update_item(collection=db_instance.messages_collection, query=query, update_data=update_data)
 
     return jsonify(message=current_user_unread_messages), HTTPStatus.OK
 
@@ -144,7 +137,7 @@ def delete_one_message(message_id):
     res = db_instance.delete_item(collection=db_instance.messages_collection, query={"message_id": message_id})
 
     # Failed to delete message from DB
-    if not isinstance(res, int):
+    if not isinstance(res, int) or res == 0:
         return werkzeug_exceptions.InternalServerError(f'Failed to delete message_id : {message_id}')
 
     return jsonify(deleted_message=res), HTTPStatus.OK
