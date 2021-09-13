@@ -1,28 +1,30 @@
-from flask import Flask, request, jsonify, send_file
-# from flask_jwt import JWT
+from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, get_jwt_identity, create_access_token, jwt_required
 
-
+from datetime import datetime
 import uuid
-import os
 from http import HTTPStatus
 import werkzeug.exceptions as werkzeug_exceptions
 
 from db_handler import DBHandler
-from auth import Auth
+
+# Initiate db_handler
 db_instance = DBHandler(database='messaging-system', users_collection='users', messages_collection='messages')
-auth_instance = Auth(db_instance)
+
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
-# app.secret_key = 'my secret key'
-
-# jwt = JWT(app=app, authentication_handler=Auth.authentication_handler, identity_handler=Auth.identity_handler)
 
 
 # Setup the Flask-JWT-Extended extension
 app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
 jwt = JWTManager(app)
+
+
+# endpoint foe heartbeat of the app
+@app.route('/heartbeat')
+def is_alive():
+    return 'app alive!'
 
 
 # Create a route to authenticate your users and return JWTs. The
@@ -53,7 +55,7 @@ def login():
     # Add new user to DB
     if not db_instance.add_item(collection=db_instance.users_collection, new_document=login_data):
         return werkzeug_exceptions.InternalServerError(f'Failed to add user: {username} to DB')
-    return jsonify(access_token=access_token)
+    return jsonify(access_token=access_token), HTTPStatus.OK
 
 
 # Protect a route with jwt_required, which will kick out requests
@@ -63,36 +65,86 @@ def login():
 def protected():
     # Access the identity of the current user with get_jwt_identity
     current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), 200
-
-
-@app.route('/heartbeat')
-def is_alive():
-    return 'app alive!'
+    return jsonify(logged_in_as=current_user), HTTPStatus.OK
 
 
 @app.route('/message', methods=['POST'])
 def write_message():
-    pass
+    # Get data from user to login
+    new_message = request.get_json(silent=True)
+    if not new_message:
+        return werkzeug_exceptions.BadRequest(f'Not a valid message provided as json to login, '
+                                              f'login_data: {new_message}')
+    # Get Sender, Receiver, Message, Subject
+    sender = new_message.get("Sender", None)
+    receiver = new_message.get("Receiver", None)
+    message = new_message.get("Message", None)
+    subject = new_message.get("Subject", None)
+    # In case one of Sender, Receiver, Message, Subject does not exit in request not a valid request
+    if not sender or not receiver or not message or not subject:
+        return werkzeug_exceptions.BadRequest(f'One of Sender, Receiver, Message, Subject was not provided in json, '
+                                              f'new_message: {new_message}')
+
+    # Add field 'message_id' and 'creation_date' to the new message
+    message_id = str(uuid.uuid4())
+    creation_date = datetime.utcnow()
+    new_message.update({"message_id": message_id, "creation_date": creation_date})
+
+    # Add new message to DB
+    if not db_instance.add_item(collection=db_instance.messages_collection, new_document=new_message):
+        return werkzeug_exceptions.InternalServerError(f'Failed to add new message to DB: {new_message}')
+
+    return jsonify(new_message=new_message), HTTPStatus.CREATED
 
 
 @app.route('/messages', methods=['GET'])
 @jwt_required()
 def get_all_messages():
-    pass
+    # Get the identity of the current user
+    current_user = get_jwt_identity()
+
+    # Filter only messages that the current user is the 'Receiver'
+    current_user_messages = db_instance.get_all_items(collection=db_instance.messages_collection,
+                                                      query={"Receiver": current_user})
+    return jsonify(messages=current_user_messages), HTTPStatus.OK
 
 
 @app.route('/unread_messages', methods=['GET'])
 @jwt_required()
 def get_all_unread_messages():
-    pass
+    # Get the identity of the current user
+    current_user = get_jwt_identity()
+
+    # Filter only unread messages that the current user is the 'Receiver' a
+    current_user_unread_messages = db_instance.get_all_items(collection=db_instance.messages_collection,
+                                                             query={"Receiver": current_user, "unread": True})
+    return jsonify(messages=current_user_unread_messages), HTTPStatus.OK
 
 
-@app.route('/message', methods=['GET'])
-def get_one_message():
-    pass
+@app.route('/message/<message_id>', methods=['GET'])
+@jwt_required()
+def get_one_message(message_id):
+    # Get the identity of the current user
+    current_user = get_jwt_identity()
+
+    # Filter message for the current user is the 'Receiver' and message_id
+    query = {"Receiver": current_user, "message_id": message_id}
+    current_user_unread_messages = db_instance.get_item(collection=db_instance.messages_collection, query=query)
+
+    # Update the message as read message
+    update_boolean_field = [{"$set": {"unread": {"$eq": [False, "$unread"]}}}]
+    db_instance.update_item(collection=db_instance.messages_collection, query=query, update_data=update_boolean_field)
+
+    return jsonify(message=current_user_unread_messages), HTTPStatus.OK
 
 
-@app.route('/message', methods=['DELETE'])
-def delete_one_message():
-    pass
+@app.route('/message/<message_id>', methods=['DELETE'])
+def delete_one_message(message_id):
+    # Delete message from DB
+    res = db_instance.delete_item(collection=db_instance.messages_collection, query={"message_id": message_id})
+
+    # Failed to delete message from DB
+    if not isinstance(res, int):
+        return werkzeug_exceptions.InternalServerError(f'Failed to delete message_id : {message_id}')
+
+    return jsonify(deleted_message=res), HTTPStatus.OK
