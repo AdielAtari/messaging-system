@@ -10,7 +10,8 @@ flask = "*"
 pymongo = "*"
 flask-jwt-extended = "*"
 gunicorn = "*"
-dnspython3 = "*"
+dnspython= "==2.1.0"
 
 [requires]
 python_version = "3.7"
+
