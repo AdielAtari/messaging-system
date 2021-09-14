@@ -30,19 +30,7 @@ def is_alive():
     return 'app alive!'
 
 
-@app.route("/logging", methods=["POST"])
-def logging():
-    username = request.json.get("username", None)
-    password = request.json.get("password", None)
-    if username != "test" or password != "test":
-        return jsonify({"msg": "Bad username or password"}), 401
-
-    access_token = create_access_token(identity=username)
-    return jsonify(access_token=access_token)
-
-
-# Create a route to authenticate your users and return JWTs. The
-# create_access_token() function is used to actually generate the JWT.
+# Login route to authenticate users in GET methods and return JWTs.
 @app.route("/login", methods=["POST"])
 def login():
     # Get data from user to login
@@ -75,6 +63,7 @@ def login():
     return jsonify(access_token=access_token), HTTPStatus.OK
 
 
+# Write message
 @app.route('/message', methods=['POST'])
 def write_message():
     # Get data from user to login
@@ -150,7 +139,7 @@ def get_one_message(message_id):
 
 @app.route('/message/<message_id>', methods=['DELETE'])
 def delete_one_message(message_id):
-    # Delete message from DB
+    # Delete message from DB, only if the message_id exist in DB
     res = db_instance.delete_item(collection=db_instance.messages_collection, query={"message_id": message_id})
 
     # Failed to delete message from DB
