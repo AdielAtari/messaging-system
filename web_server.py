@@ -56,7 +56,10 @@ def login():
                                               f'login_data: {login_data}')
 
     # In case username already taken, not a valid request
-    is_username_exit = db_instance.get_item(collection=db_instance.users_collection, query={"username": username})
+    try:
+        is_username_exit = db_instance.get_item(collection=db_instance.users_collection, query={"username": username})
+    except Exception as ex:
+        return werkzeug_exceptions.InternalServerError(f'Failed to get user from DB, exception: {str(ex)}')
     if is_username_exit:
         return werkzeug_exceptions.Unauthorized(f'Username already exist, choose another one')
 
