@@ -8,7 +8,10 @@ verify_ssl = true
 [packages]
 flask = "*"
 pymongo = "*"
-
+flask-jwt-extended = "*"
+gunicorn = "*"
+dnspython= "==2.1.0"
 
 [requires]
 python_version = "3.7"
+
