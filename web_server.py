@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, get_jwt_identity, create_access_token, jwt_required
 
+import os
 from datetime import datetime
 import uuid
 from http import HTTPStatus
@@ -9,7 +10,9 @@ import werkzeug.exceptions as werkzeug_exceptions
 from db_handler import DBHandler
 
 # Initiate db_handler
-db_instance = DBHandler(database='messaging-system', users_collection='users', messages_collection='messages')
+mongo_address = os.environ.get("MONGODB_URI", "mongodb://localhost:27017/")
+db_instance = DBHandler(database='messaging-system', users_collection='users', messages_collection='messages',
+                        mongo_address=mongo_address)
 
 
 app = Flask(__name__)

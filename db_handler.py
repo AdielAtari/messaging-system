@@ -4,7 +4,7 @@ from typing import Union
 
 
 class DBHandler:
-    def __init__(self, database, users_collection, messages_collection, mongo_address="mongodb://localhost:27017/"):
+    def __init__(self, database, users_collection, messages_collection, mongo_address):
         self._client = MongoClient(host=mongo_address, serverSelectionTimeoutMS=10)
         self._db = self._client[database]
         self.users_collection = self._db[users_collection]
