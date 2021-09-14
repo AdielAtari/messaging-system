@@ -1,6 +1,6 @@
 from pymongo import MongoClient, DESCENDING
 from pymongo.collection import Collection
-from typing import Tuple, Union
+from typing import Union
 
 
 class DBHandler:

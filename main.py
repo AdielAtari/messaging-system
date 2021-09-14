@@ -7,4 +7,4 @@ if __name__ == '__main__':
     api_host = int(os.environ.get('API_HOST', 8080))
 
     # run flask app
-    app.run(host=api_port, port=api_host, debug=False)
+    app.run(host=api_port, port=api_host, debug=True)
